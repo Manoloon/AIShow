@@ -45,9 +45,11 @@ FString GetPathDescHelper(FNavPathSharedPtr Path)
 
 FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath)
 {
-//	InPath->GetGoalLocation();
-	InPath->GetPathPointLocation()
-	
+	if(InPath.IsValid())
+	{
+		DrawDebugSphere(GetWorld(), InPath->GetGoalLocation(), 10, 6, FColor::Purple, true, 1, 0, 3);
+	}
+	/*
 	TArray<FVector> Locations;
 	AController* Controller = Cast<AController>(GetOwner());
 	ACharacter* Character = Controller->GetCharacter();
@@ -57,22 +59,22 @@ FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& Re
 		Locations.Add(FVector(CharLoc.X+50.f, CharLoc.Y-50.f, 0.f));
 		Locations.Add(FVector(CharLoc.X+250.f, CharLoc.Y-250.f, 0.f));
 		Locations.Add(FVector(CharLoc.X, CharLoc.Y, 0.f));
-	}
+	}*/
 	//Locations.Add(FVector(50.f, 50.f, 0.f));
 	//Locations.Add(FVector(450.f, -250.f, 0.f));
 	//Locations.Add(FVector(50.f, 50.f, 0.f));
 	//Locations.Add(FVector(650.f, 250.f, 0.f));
 
 	
-	if (IsPlayerCrossingPath(Locations))
+	if (IsPlayerCrossing(InPath))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Crossing!"));
 	}
-	FMetaNavMeshPath* MetaNavMeshPath = new FMetaNavMeshPath(Locations, *Controller);
-	TSharedPtr<FMetaNavMeshPath, ESPMode::ThreadSafe> MetaPathPtr(MetaNavMeshPath);
+	//FMetaNavMeshPath* MetaNavMeshPath = new FMetaNavMeshPath(Locations, *Controller);
+	//TSharedPtr<FMetaNavMeshPath, ESPMode::ThreadSafe> MetaPathPtr(MetaNavMeshPath);
 
-	InPath = FNavPathSharedPtr(MetaPathPtr);
-	return Super::RequestMove(RequestData, MetaPathPtr);
+	//InPath = FNavPathSharedPtr(MetaPathPtr);
+	return Super::RequestMove(RequestData, InPath);
 }
 
 void UCustomPathFollowingComponent::UpdateMoveFocus()
@@ -102,7 +104,7 @@ bool UCustomPathFollowingComponent::IsPlayerCrossingPath(TArray<FVector>& Curren
 	{
 		float Dist = FVector::Dist(PlayerLocation, CurrentLocation);
 		DrawDebugSphere(GetWorld(), CurrentLocation, 10, 6, FColor::Green, true, 1, 0, 3);
-		if (Dist < CrossThresholdDistance)
+		if (Dist < RadiusOfAvoidance)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Player is in the path , %f"), Dist);
 			CurrentLocation.X += 200.0f;
@@ -115,7 +117,7 @@ bool UCustomPathFollowingComponent::IsPlayerCrossingPath(TArray<FVector>& Curren
 	return false;
 }
 
-bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
+bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr& InPath)
 {
 	// Ensure the player character and path following component are valid
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
@@ -127,15 +129,16 @@ bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
 
 	// Get the player character's location
 	FVector PlayerLocation = PlayerCharacter->GetActorLocation();
-	for(int i= 0; i < InPath->GetLength();i++)
+	// Pathpoints only 2 , begin and goal... if crossing we need to add a new pathpoint away from the radiusAvoidance.
+	for(FNavPathPoint PathPointLoc : InPath->GetPathPoints())
 	{
-		float Dist = FVector::Dist(PlayerLocation, InPath->GetPathPointLocation(i).CachedBaseLocation);
-		DrawDebugSphere(GetWorld(), InPath->GetPathPointLocation(i).CachedBaseLocation, 10, 6, FColor::Green, true, 1, 0, 3);
-		if (Dist < CrossThresholdDistance)
+		float Dist = FVector::Dist(PlayerLocation, PathPointLoc.Location);
+		DrawDebugSphere(GetWorld(), PathPointLoc.Location, 10, 6, FColor::Emerald, true, 1, 0, 3);
+		if (Dist < RadiusOfAvoidance)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Player is in the path , %f"), Dist);
-			//CurrentLocation.X += 200.0f;
-			//DrawDebugSphere(GetWorld(), CurrentLocation, 10, 6, FColor::Magenta, true, 1, 0, 3);
+			PathPointLoc.Location.X += 200.0f;
+			DrawDebugSphere(GetWorld(), PathPointLoc.Location, 10, 6, FColor::Magenta, true, 1, 0, 3);
 			return true;
 		}
 		UE_LOG(LogTemp, Warning, TEXT("Player is not in the Way , %f"), Dist);

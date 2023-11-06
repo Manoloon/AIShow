@@ -15,6 +15,8 @@ class AISHOW_API UCustomPathFollowingComponent : public UPathFollowingComponent
 	FAIRequestID CurrentRequestId;
 	/** timer handle for OnWaitingPathTimeout function */
 	FTimerHandle WaitingForPathTimer;
+	float RadiusOfAvoidance = 300.f;
+	
 public:
 	// Sets default values for this component's properties
 	UCustomPathFollowingComponent();
@@ -23,7 +25,8 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 	bool IsPlayerCrossingPath(TArray<FVector>& CurrentLocations);
-	bool IsPlayerCrossing(FNavPathSharedPtr InPath);
+	bool IsPlayerCrossing(FNavPathSharedPtr& InPath);
+	
 
 public:
 	// Called every frame
@@ -32,7 +35,4 @@ public:
 	virtual FAIRequestID RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath) override;
 	virtual void UpdateMoveFocus() override;
 	virtual bool HandlePathUpdateEvent();
-
-private:
-	float CrossThresholdDistance = 200.f;
 };
