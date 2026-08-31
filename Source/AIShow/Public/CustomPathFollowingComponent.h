@@ -13,16 +13,8 @@ UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class AISHOW_API UCustomPathFollowingComponent : public UPathFollowingComponent
 {
 	GENERATED_BODY()
-
-	FAIRequestID CurrentRequestId;
-	/** timer handle for OnWaitingPathTimeout function */
-	FTimerHandle WaitingForPathTimer;
-	float RadiusOfAvoidance = 300.f;
-	
 	FAIMoveRequest CurrentMoveRequest;
 	bool bIsRepathing = false;
-	bool bRepathRequested = false;
-	void ExecuteRepath();
 protected:
 	bool IsPlayerCrossing(FNavPathSharedPtr InPath);
 public:

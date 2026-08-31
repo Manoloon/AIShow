@@ -13,6 +13,7 @@ FString GetPathDescHelper(FNavPathSharedPtr Path)
 
 float UCustomPathFollowingComponent::DistancePointToSegment2D(const FVector& Point, const FVector& SegmentStart, const FVector& SegmentEnd, FVector& OutClosestPoint)
 {
+	
 	const FVector2D P(Point.X, Point.Y);
 	const FVector2D A(SegmentStart.X, SegmentStart.Y);
 	const FVector2D B(SegmentEnd.X, SegmentEnd.Y);
@@ -30,9 +31,10 @@ float UCustomPathFollowingComponent::DistancePointToSegment2D(const FVector& Poi
 	OutClosestPoint = FVector{ ClosestPoint.X, ClosestPoint.Y, SegmentStart.Z };
 	return FVector2D::Distance(P, ClosestPoint);
 }
-
+// # 2
 bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward) const
 {
+	UE_LOG(LogTemp, Error, TEXT(">>> SegmentIntersectsVisionCone2D"));
 	const FVector2D Start(SegmentStart.X, SegmentStart.Y);
 	const FVector2D End(SegmentEnd.X, SegmentEnd.Y);
 	const FVector2D Player(PlayerLocation.X, PlayerLocation.Y);
@@ -43,6 +45,7 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 
 	auto IsPointInsideCone = [&](const FVector2D& Point) -> bool 
 	{
+		
 		const FVector2D ToPoint = Point - Player;
 		const float DistanceSquared = ToPoint.SizeSquared();
 
@@ -126,10 +129,11 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 bool UCustomPathFollowingComponent::HandlePathUpdateEvent()
 {
 	UE_LOG(LogTemp, Error, TEXT(">>> HandlePathUpdateEvent"));
+	
 	if (Path.IsValid())
 	{
 		const TArray<FNavPathPoint>& Points = Path->GetPathPoints();
-		UE_LOG(LogTemp, Error, TEXT("[PATH] | Points: %d | Partial: %s"), Path->GetPathPoints().Num(), Path->IsPartial() ? TEXT("TRUE") : TEXT("FALSE"));
+		UE_LOG(LogTemp, Warning, TEXT("[PATH] | Points: %d | Partial: %s"), Path->GetPathPoints().Num(), Path->IsPartial() ? TEXT("TRUE") : TEXT("FALSE"));
 
 		for (int32 i = 0; i < Points.Num(); ++i)
 		{
@@ -149,18 +153,24 @@ bool UCustomPathFollowingComponent::HandlePathUpdateEvent()
 
 void UCustomPathFollowingComponent::StartAvoidanceUpdates()
 {
+	UE_LOG(LogTemp, Error, TEXT(">>> Start AVoidance Updates"));
+	
 	if (GetWorld()->GetTimerManager().IsTimerActive(AvoidanceUpdateTH)) return;
 	GetWorld()->GetTimerManager().SetTimer(AvoidanceUpdateTH,this,&UCustomPathFollowingComponent::UpdateAvoidancePath,0.15f,true);
 }
 
 void UCustomPathFollowingComponent::StopAvoidanceUpdates()
 {
+	UE_LOG(LogTemp, Error, TEXT(">>> Stop AVoidance Updates"));
+	
 	GetWorld()->GetTimerManager().ClearTimer(AvoidanceUpdateTH);
 	bUsingAvoidancePath = false;
 }
 
 void UCustomPathFollowingComponent::UpdateAvoidancePath()
 {
+	UE_LOG(LogTemp, Error, TEXT(">>> Updating AVoidance"));
+	
 	if (!bUsingAvoidancePath) return;
 	if (!AIController || !PlayerCharacter)
 	{
@@ -181,6 +191,7 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 	
 	if (!GetAvoidanceWaypoint(EnemyLocation,PlayerLocation,PlayerForward,CurrentPathGoal,AvoidPoint1,AvoidPoint2))
 	{
+		UE_LOG(LogTemp, Error, TEXT(">>> Cant Get GetAvoidanceWaypoint"));
 		return;
 	}
 	
@@ -201,6 +212,8 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 
 bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath)
 {
+	UE_LOG(LogTemp, Error, TEXT(">>> Create AVoidance MetaPath"));
+	
 	if (!OriginalPath.IsValid())
 		return false;
 
@@ -253,7 +266,9 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward, 
 																		const FVector& Goal,FVector& OutAvoidPoint,FVector& OutAvoidPoint2)
 {
-	 const FVector Forward = PlayerForward.GetSafeNormal2D();
+	UE_LOG(LogTemp, Error, TEXT(">>> Get Avoidance Waypoint"));
+	
+	const FVector Forward = PlayerForward.GetSafeNormal2D();
     if (Forward.IsNearlyZero()) return false;
 
     const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal2D();
@@ -300,19 +315,19 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 
     return true;
 }
-
+// # 1
 FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath)
 {
+	UE_LOG(LogTemp, Error, TEXT(">>> Request Move"));
+	
 	CurrentMoveRequest = RequestData;
 	if (InPath.IsValid() && InPath->GetPathPoints().Num() > 0)
 	{
 		CurrentPathGoal = InPath->GetPathPoints().Last().Location;
 		UE_LOG(LogTemp, Warning, TEXT("[AVOIDANCE] Original Goal = %s"), *CurrentPathGoal.ToString());
 	}
-	UE_LOG(LogTemp, Error, TEXT(">>> Custom RequestMove"));
 	if (InPath.IsValid() && IsPlayerCrossing(InPath) && !bIsRepathing)
 	{
-		UE_LOG(LogTemp, Error, TEXT(">>> IsPlayerCrossing"));
 		FNavPathSharedPtr AvoidancePath;
 		if (CreateAvoidanceMetaPath(InPath, AvoidancePath))
 		{
@@ -326,28 +341,10 @@ FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& Re
 	return Super::RequestMove(RequestData, InPath);
 }
 
-void UCustomPathFollowingComponent::ExecuteRepath()
-{
-	static int32 RepathCounter = 0;
-	++RepathCounter;
-
-	UE_LOG(LogTemp,Error,TEXT("========== EXECUTING REPATH #%d =========="),RepathCounter);
-	AAIController* AIContr = Cast<AAIController>(GetOwner());
-	if (!IsValid(AIContr) || !CurrentMoveRequest.IsValid())
-	{
-		bIsRepathing = false;
-		return;
-	}
-
-	UE_LOG(LogTemp, Error, TEXT("========== EXECUTING REPATH =========="));
-	const FPathFollowingRequestResult Result = AIContr->MoveTo(CurrentMoveRequest);
-	UE_LOG(LogTemp, Error, TEXT(">>> REPATH RESULT CODE: %d"), static_cast<int32>(Result.Code));
-	UE_LOG(LogTemp, Error, TEXT(">>> REPATH REQUEST ID: %u"), Result.MoveId.GetID());
-	bIsRepathing = false;
-}
-
 bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
 {
+	UE_LOG(LogTemp, Error, TEXT(">>> IsPlayerCrossing"));
+	
 	AIController = Cast<AAIController>(GetOwner());
 	PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(),0);
 	if (!PlayerCharacter || !InPath.IsValid())
