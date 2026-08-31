@@ -29,9 +29,15 @@ public:
 	UPROPERTY(EditAnywhere,Category = "Settings")
 	float ConeDistance = 500.f;
 	virtual FAIRequestID RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath) override;
+
 protected:
 	static float DistancePointToSegment2D(const FVector& Point, const FVector& SegmentStart, const FVector& SegmentEnd, FVector& OutClosestPoint);
 	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward) const;
-	
+	virtual bool HandlePathUpdateEvent() override;
 	FTimerHandle RepathTimerHandle;
+	
+private:
+	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
+	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward, 
+								const FVector& Goal,FVector& OutAvoidPoint,FVector& OutAvoidPoint2);
 };
