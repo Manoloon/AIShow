@@ -4,13 +4,13 @@ using UnrealBuildTool;
 
 public class AIShow : ModuleRules
 {
-	public AIShow(ReadOnlyTargetRules Target) : base(Target)
+	public AIShow(ReadOnlyTargetRules target) : base(target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore","NavigationSystem" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "SmartObjectsModule", "AIModule" , "GameplayTasks" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "SmartObjectsModule", "AIModule" , "GameplayTasks", "GameplayTags","AIModule","GameplayBehaviorSmartObjectsModule" });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

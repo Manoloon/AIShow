@@ -6,6 +6,7 @@
 #include "BlackboardKeyType_SOClaimHandle.h"
 #include "GameFramework/Character.h"
 #include "DrawDebugHelpers.h"
+#include "SmartObjectRequestTypes.h"
 #include "SmartObjectSubsystem.h"
 
 EBTNodeResult::Type
@@ -41,13 +42,16 @@ UTask_FindSmartObject::ExecuteTask(UBehaviorTreeComponent& OwnerComp,
 	if (SOSubSystem->FindSmartObjects(Request, RequestResults))
 	{
 		FSmartObjectRequestResult ResultItem = RequestResults.Top();
-		FSmartObjectClaimHandle Result = SOSubSystem->Claim(ResultItem);
+		FSmartObjectClaimHandle ClaimedHandle = SOSubSystem->MarkSlotAsClaimed(ResultItem.SlotHandle,ESmartObjectClaimPriority::Normal);
 		UBlackboardComponent* BlackBoardComp = MyController->GetBlackboardComponent();
 		if (!IsValid(BlackBoardComp))
 		{
 			return EBTNodeResult::Failed;
 		}
-		BlackBoardComp->SetValue<UBlackboardKeyType_SOClaimHandle>(SOClaimedBBSelector.SelectedKeyName, Result);
+		if (ClaimedHandle.IsValid())
+		{
+			BlackBoardComp->SetValue<UBlackboardKeyType_SOClaimHandle>(SOClaimedBBSelector.SelectedKeyName, ClaimedHandle);
+		}
 		return EBTNodeResult::Succeeded;
 	}
 	return EBTNodeResult::Failed;

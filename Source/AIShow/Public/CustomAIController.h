@@ -15,6 +15,9 @@ public:
 	// Sets default values for this actor's properties
 	ACustomAIController(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+	UFUNCTION(BlueprintCallable)
+	UPARAM(DisplayName ="Has Items?") bool GetAllActors(TArray<AActor*>& OutActors);
+	
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

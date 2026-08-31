@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.1",
+	"EngineAssociation": "{BC09D587-4424-4CD1-907F-3FA997BFCC4C}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -34,5 +34,9 @@
 			"Name": "SmartObjects",
 			"Enabled": true
 		}
+	],
+	"TargetPlatforms": [
+		"Win64",
+		"Win32"
 	]
 }

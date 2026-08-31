@@ -8,8 +8,11 @@ public class AIShowEditorTarget : TargetRules
 	public AIShowEditorTarget( TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Editor;
-		DefaultBuildSettings = BuildSettingsVersion.V2;
-		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_1;
+		DefaultBuildSettings = BuildSettingsVersion.V6;
+		bLegacyParentIncludePaths = false;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
+		CppStandard = CppStandardVersion.Default;
+		bValidateFormatStrings = true;
 		ExtraModuleNames.Add("AIShow");
 	}
 }

@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "Task_FindSmartObject.generated.h"
 
+class UBehaviorTreeComponent;
 class USmartObjectBehaviorDefinition;
 class UGameplayBehavior;
 class USmartObjectComponent;

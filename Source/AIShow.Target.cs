@@ -8,8 +8,11 @@ public class AIShowTarget : TargetRules
 	public AIShowTarget( TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Game;
-		DefaultBuildSettings = BuildSettingsVersion.V2;
-		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_1;
+		DefaultBuildSettings = BuildSettingsVersion.V6;
+		bLegacyParentIncludePaths = false;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
+		CppStandard = CppStandardVersion.Default;
+		bValidateFormatStrings = true;
 		ExtraModuleNames.Add("AIShow");
 	}
 }

@@ -14,6 +14,15 @@ ACustomAIController::ACustomAIController(const FObjectInitializer& ObjectInitial
 
 }
 
+bool ACustomAIController::GetAllActors(TArray<AActor*>& OutActors)
+{
+	if(OutActors.IsEmpty())
+	{
+		return false;
+	}
+	return true;
+}
+
 // Called when the game starts or when spawned
 void ACustomAIController::BeginPlay()
 {
