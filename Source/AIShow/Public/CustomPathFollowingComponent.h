@@ -6,29 +6,49 @@
 #include "Navigation/PathFollowingComponent.h"
 #include "CustomPathFollowingComponent.generated.h"
 
-
 class AAIController;
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(ClassGroup=(Navigation), meta=(BlueprintSpawnableComponent))
 class AISHOW_API UCustomPathFollowingComponent : public UPathFollowingComponent
 {
 	GENERATED_BODY()
-	FAIMoveRequest CurrentMoveRequest;
-	bool bIsRepathing = false;
-protected:
-	bool IsPlayerCrossing(FNavPathSharedPtr InPath);
 public:
+	virtual FAIRequestID RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath) override;
+	virtual void OnPathFinished(const FPathFollowingResult& Result) override;
+private:
+	bool IsPlayerCrossing(FNavPathSharedPtr InPath);
+	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward) const;
+	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
+	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
+		FVector& OutAvoidPoint, FVector& OutAvoidPoint2) const;
+	void StartAvoidanceUpdates();
+	void UpdateAvoidancePath();
+	void StopAvoidanceUpdates();
+	
+	#if !UE_BUILD_SHIPPING
+	// Debug functions
+	void DrawConeOfVision(const FVector& PlayerForwardVector, const FVector& PlayerLocation) const;
+	#endif
+	
+protected:
+	virtual bool HandlePathUpdateEvent() override;
+
+private:
 	UPROPERTY(EditAnywhere,Category = "Settings")
 	float HalfVisionCone = 45.0f;
 	UPROPERTY(EditAnywhere,Category = "Settings")
-	float ConeDistance = 500.f;
-	virtual FAIRequestID RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath) override;
+	float ConeDistance = 800.f;
+	// Its the minimum distance that the player must move to repath
 	UPROPERTY(EditAnywhere,Category = "Settings")
-	float DistanceToPlayerThreshold = 100.f;
-protected:
-	static float DistancePointToSegment2D(const FVector& Point, const FVector& SegmentStart, const FVector& SegmentEnd, FVector& OutClosestPoint);
-	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward) const;
-	virtual bool HandlePathUpdateEvent() override;
+	float MinPlayerMovementThreshold = 100.f;
+	// Time rate for updating Avoidance Path
+	UPROPERTY(EditAnywhere,Category = "Settings")
+	float UpdateAvoidancePathRate = 0.15f;
+	UPROPERTY(EditAnywhere,Category = "Settings")
+	float Margin = 150.f;
+	
+	FAIMoveRequest CurrentMoveRequest;
+	bool bIsRepathing = false;
 	FTimerHandle AvoidanceUpdateTH;
 	FVector LastAvoidancePlayerlocation = FVector::ZeroVector;
 	bool bUsingAvoidancePath = false;
@@ -37,12 +57,4 @@ protected:
 	UPROPERTY()
 	ACharacter* PlayerCharacter = nullptr;
 	FVector CurrentPathGoal = FVector::ZeroVector;
-	void StartAvoidanceUpdates();
-	void StopAvoidanceUpdates();
-	void UpdateAvoidancePath();
-	
-private:
-	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
-	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward, 
-								const FVector& Goal,FVector& OutAvoidPoint,FVector& OutAvoidPoint2);
 };
