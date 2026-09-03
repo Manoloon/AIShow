@@ -162,7 +162,7 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 	{
 		const FVector Offset = FVector(0, 0, 30);
 		DrawDebugLine(GetWorld(), SegmentStart + Offset,SegmentEnd + Offset, FColor::Red, false, 1.0f, 1, 8.0f);
-		DrawDebugSphere(GetWorld(), SegmentStart + Offset, 15.f, 8, FColor::Orange, false, 1.0f);
+		DrawDebugSphere(GetWorld(), SegmentStart + Offset, 15.f, 8, FColor::Cyan, false, 1.0f);
 		DrawDebugSphere(GetWorld(), SegmentEnd + Offset, 15.f, 8, FColor::Cyan, false, 1.0f);
 	}
 	#endif
@@ -336,18 +336,23 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 	
 	const FVector PlayerLoc = PlayerCharacter->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
-	const FVector Start = Points[0].Location;
+	const FVector Start = Points[0].Location; 
 	FVector AvoidPoint;
-	if (!GetAvoidanceWaypoint(Start, PlayerLoc, PlayerForward,AvoidPoint))
+	FVector AvoidPoint2;
+	if (!GetAvoidanceWaypoint(Start, PlayerLoc, PlayerForward,AvoidPoint, AvoidPoint2))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] Failed To get Avoidance points")); 
 		return false;
 	}
 	
 	TArray<FVector> Waypoints;
-	Waypoints.Reserve(3);
+	Waypoints.Reserve(4);
 	Waypoints.Add(Start);
 	Waypoints.Add(AvoidPoint);
+	if (AvoidPoint2 != FVector::ZeroVector)
+	{
+		Waypoints.Add(AvoidPoint2);
+	}
 	Waypoints.Add(CurrentPathGoal);
 
 	// TODO : ver esto. AIController ? nullptr ? 
@@ -372,7 +377,7 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 
 /// Cual es el desplazamiento minimo para que el segmento deje de cruzar el cono de vision ? 
 bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
-	FVector& OutAvoidPoint)
+	FVector& OutAvoidPoint, FVector& OutAvoidPoint2)
 {
 	UE_LOG(LogTemp, Error, TEXT(">>> Get Avoidance Waypoint"));
 	
@@ -393,54 +398,74 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 	}
     const float SideDistance = FVector::DotProduct(ToEnemy, Right);
 	const float SideSign = SideDistance >= 0.0f ? 1.0f : -1.0f;
+	
 	// point to calculate to.
 	const FVector Intersection3D = {CurrentIntersection.X,CurrentIntersection.Y,0.0f};
 	const FVector ToIntersection = Intersection3D;
 	const float Distance2D = ToIntersection.Size2D();
-	const float AdvanceDistance = FMath::Clamp(ForwardDistance * 0.3f,ForwardDistance * 1.5,ForwardDistance * 2);
+	/// a distance behind player
+	const float AdvanceDistance = FMath::Clamp(ForwardDistance,ForwardDistance * 1.1,ForwardDistance * 2.0);
 	const float TargetForwardDistance = -ForwardDistance + AdvanceDistance;
-	// ancho del cono
+	/// ancho del cono
     const float HalfAngleRadians = FMath::DegreesToRadians(HalfVisionCone);
 	/// al momento es la mitad de la amplitud del cono = 770 (45%)
-	const float ConeHalfWidth = HalfAngleRadians * Distance2D; //FMath::Tan(HalfAngleRadians);
+	const float ConeHalfWidth = HalfAngleRadians * Distance2D;
 	
 	/// Waypoint 
 	const FVector LateralOffset = Right * ConeHalfWidth * SideSign;
-    const FVector NodePoint = PlayerLocation + NormalizedForward  * TargetForwardDistance + LateralOffset;
-	#if !UE_BUILD_SHIPPING
-	if (AvoidVisionCvars::AvoidVisionDebug)
+    const FVector NodePoint = PlayerLocation - NormalizedForward  * TargetForwardDistance + LateralOffset;
+	const UNavigationSystemV1* NavSys = Cast<UNavigationSystemV1>(GetWorld()->GetNavigationSystem());
+	if (!NavSys)
 	{
-		// nodo
-		DrawDebugSphere(GetWorld(), NodePoint, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
+		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because NavSys invalid"));
+		return false;
 	}
-	#endif
+	FNavLocation Projected;
+
+	if (!NavSys->ProjectPointToNavigation(NodePoint, Projected))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because NavSys failed to project"));
+		return false;
+	}
+	OutAvoidPoint = Projected.Location;
 	
-	if (const UWorld* World = GetWorld())
+	/// second node if needed!
+	// if NodePoint cross in front of the playerLocation + normalizedForward entonces necesito un Nodepoint2 por detras del player y proyectarlo como OutAvoidPoint2
+	const FVector ToGoal = (CurrentPathGoal - NodePoint).GetSafeNormal();
+	const float ForwardSide = FVector::DotProduct(ToGoal,NormalizedForward);
+	UE_LOG(LogTemp,Warning,TEXT("[GetAvoidanceWaypoint] ForwardSide %f"),ForwardSide);
+	
+	DrawDebugSphere(GetWorld(), CurrentPathGoal, 35.0f, 16, FColor::Emerald, true, 10.0f, 1, 4.0f);
+	DrawDebugLine(GetWorld(), NodePoint, CurrentPathGoal, FColor::Red, true, 15.0f, 1, 6.0f);
+	// quiere decir que NodePoint se va a cruzar.. creamos un nodo mas
+	if (ForwardSide > 0.0f)
 	{
-		const UNavigationSystemV1* NavSys = Cast<UNavigationSystemV1>(World->GetNavigationSystem());
-		if (!NavSys)
+		FVector NodePoint2 = NodePoint - NormalizedForward * TargetForwardDistance - LateralOffset;
+		FNavLocation Projected2;
+		if (NavSys->ProjectPointToNavigation(NodePoint2, Projected2))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] FALSE because NavSys invalid"));
-			return false;
+			OutAvoidPoint2 = Projected2.Location;
 		}
-		FNavLocation Projected;
-		if (!NavSys->ProjectPointToNavigation(NodePoint, Projected))
+		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because NavSys failed to project"));
-			return false;
+			UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because NavSys failed to project NODE 2"));
 		}
-		OutAvoidPoint = Projected.Location;
 	}
-	    
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
-		DrawDebugSphere(GetWorld(), OutAvoidPoint, 35.0f, 16, FColor::Yellow, false, 5.0f, 1, 4.0f);
+		DrawDebugSphere(GetWorld(), NodePoint, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
+		DrawDebugSphere(GetWorld(), OutAvoidPoint, 35.0f, 16, FColor::Yellow, false, 10.0f, 1, 4.0f);
+		if (OutAvoidPoint2 != FVector::ZeroVector)
+		{
+			DrawDebugSphere(GetWorld(), OutAvoidPoint2, 75.0f, 16, FColor::Orange, false, 10.0f, 1, 4.0f);
+		}
 		const FVector Offset = FVector(0, 0, 20);
 		DrawDebugLine(GetWorld(), Start + Offset, OutAvoidPoint + Offset, FColor::Yellow, false, 5.0f, 1, 6.0f);
 	
 		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] ForwardDistance=%.2f SideDistance=%.2f ConeHalfWidth=%.2f"), ForwardDistance, SideDistance, ConeHalfWidth);
 		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] AvoidPoint = %s"), *OutAvoidPoint.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] AvoidPoint2 = %s"), *OutAvoidPoint2.ToString());
 	}
 	#endif
     return true;
@@ -480,22 +505,27 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 	const FVector EnemyLocation = AIController->GetPawn()->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
 	FVector AvoidPoint;
+	FVector AvoidPoint2;
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
 		DrawConeOfVision(PlayerForward,PlayerCharacter->GetActorLocation(), false,1.f);
 	}
 	#endif
-	if (!GetAvoidanceWaypoint(EnemyLocation,LastAvoidancePlayerlocation,PlayerForward,AvoidPoint))
+	if (!GetAvoidanceWaypoint(EnemyLocation,LastAvoidancePlayerlocation,PlayerForward,AvoidPoint, AvoidPoint2))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[UpdateAvoidancePath] Cant Get GetAvoidanceWaypoint"));
 		return;
 	}
 	
 	TArray<FVector> Waypoints;
-	Waypoints.Reserve(3);
+	Waypoints.Reserve(4);
 	Waypoints.Add(EnemyLocation);
 	Waypoints.Add(AvoidPoint);
+	if (AvoidPoint2 != FVector::ZeroVector)
+	{
+		Waypoints.Add(AvoidPoint2);
+	}
 	Waypoints.Add(CurrentPathGoal);
 
 	const TSharedPtr<FMetaNavMeshPath,ESPMode::ThreadSafe> MetaPath = MakeShared<FMetaNavMeshPath>(Waypoints,*AIController);

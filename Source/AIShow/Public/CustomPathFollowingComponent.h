@@ -21,7 +21,7 @@ private:
 	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward);
 	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
 	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
-		FVector& OutAvoidPoint);
+		FVector& OutAvoidPoint, FVector& OutAvoidPoint2);
 	void StartAvoidanceUpdates();
 	void UpdateAvoidancePath();
 	void StopAvoidanceUpdates();
@@ -45,8 +45,6 @@ private:
 	// Time rate for updating Avoidance Path
 	UPROPERTY(EditAnywhere,Category = "Settings")
 	float UpdateAvoidancePathRate = 0.15f;
-	UPROPERTY(EditAnywhere,Category = "Settings")
-	float Margin = 150.f;
 	FNavPathSharedPtr CurrentPath;
 	FAIMoveRequest CurrentMoveRequest;
 	FTimerHandle AvoidanceUpdateTH;
