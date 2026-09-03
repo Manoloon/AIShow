@@ -56,4 +56,5 @@ private:
 	ACharacter* PlayerCharacter = nullptr;
 	FVector CurrentPathGoal = FVector::ZeroVector;
 	FVector2D CurrentIntersection = FVector2D::ZeroVector;
+	const FVector VertOffset = FVector(0, 0, 20);
 };
