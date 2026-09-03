@@ -18,7 +18,7 @@ public:
 
 private:
 	bool IsPlayerCrossing(FNavPathSharedPtr InPath);
-	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward) const;
+	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward);
 	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
 	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
 		FVector& OutAvoidPoint);
@@ -50,7 +50,6 @@ private:
 	FNavPathSharedPtr CurrentPath;
 	FAIMoveRequest CurrentMoveRequest;
 	FTimerHandle AvoidanceUpdateTH;
-	const float AvoidanceLookAhead = 400.0f;
 	FVector LastAvoidancePlayerlocation = FVector::ZeroVector;
 	bool bUsingAvoidancePath = false;
 	UPROPERTY()
@@ -58,4 +57,5 @@ private:
 	UPROPERTY()
 	ACharacter* PlayerCharacter = nullptr;
 	FVector CurrentPathGoal = FVector::ZeroVector;
+	FVector2D CurrentIntersection = FVector2D::ZeroVector;
 };

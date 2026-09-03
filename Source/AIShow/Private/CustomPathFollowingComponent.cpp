@@ -143,6 +143,7 @@ bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
 		
 		const FVector Start = Points[i].Location;
 		const FVector End = Points[i + 1].Location;
+		
 		if (SegmentIntersectsVisionCone2D(Start, End, PlayerLoc, PlayerForward))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] PATH INTERSECTS PLAYER VISION CONE"));
@@ -153,7 +154,7 @@ bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
 	return false;
 }
 
-bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward) const
+bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward)
 {
 	UE_LOG(LogTemp, Error, TEXT(">>> SegmentIntersectsVisionCone2D"));
 	#if !UE_BUILD_SHIPPING
@@ -192,11 +193,13 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 	if (IsPointInsideCone(Start))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[SegmentIntersectsVisionCone2D] IsPointInsideCone -> Start"));
+		CurrentIntersection = Start;
 		return true;
 	}
 	if (IsPointInsideCone(End))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[SegmentIntersectsVisionCone2D] IsPointInsideCone -> End"));
+		CurrentIntersection = End;
 		return true;
 	}
 	
@@ -265,7 +268,7 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 					T1, Intersection.X, Intersection.Y, Distance, Dot, Angle);
 			}
 			#endif
-			
+			CurrentIntersection = Intersection;
 			return true;
 		}
 	}
@@ -275,6 +278,7 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 		if (IsPointInsideCone(Intersection))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[VISION] Intersection T2"));
+			CurrentIntersection = Intersection;
 			return true;
 		}
 	}
@@ -382,26 +386,31 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
     const FVector Right = FVector::CrossProduct(FVector::UpVector, NormalizedForward).GetSafeNormal2D();
     const FVector ToEnemy = Start - PlayerLocation;
     const float ForwardDistance = FVector::DotProduct(ToEnemy, NormalizedForward);
+	if (ForwardDistance <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because ForwarDistance Less or equal ZERO"));
+		return false;
+	}
     const float SideDistance = FVector::DotProduct(ToEnemy, Right);
-
-    if (ForwardDistance <= 0.0f)
-    {
-    	UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because ForwarDistance Less or equal ZERO"));
-	    return false;
-    }
-
+	const float SideSign = SideDistance >= 0.0f ? 1.0f : -1.0f;
+	// point to calculate to.
+	const FVector Intersection3D = {CurrentIntersection.X,CurrentIntersection.Y,0.0f};
+	const FVector ToIntersection = Intersection3D;
+	const float Distance2D = ToIntersection.Size2D();
+	const float AdvanceDistance = FMath::Clamp(ForwardDistance * 0.3f,ForwardDistance * 1.5,ForwardDistance * 2);
+	const float TargetForwardDistance = -ForwardDistance + AdvanceDistance;
+	// ancho del cono
     const float HalfAngleRadians = FMath::DegreesToRadians(HalfVisionCone);
 	/// al momento es la mitad de la amplitud del cono = 770 (45%)
-    const float ConeHalfWidth = ForwardDistance * FMath::Tan(HalfAngleRadians);
-
-    const float SideSign = SideDistance >= 0.0f ? 1.0f : -1.0f;
-	/// 770 + margin (150) es un monton! 
-    const float EscapeSide = ConeHalfWidth + Margin;
-	const FVector LateralOffset = Right * EscapeSide * SideSign;
-    const FVector NodePoint = PlayerLocation + NormalizedForward  * ForwardDistance + LateralOffset;
+	const float ConeHalfWidth = HalfAngleRadians * Distance2D; //FMath::Tan(HalfAngleRadians);
+	
+	/// Waypoint 
+	const FVector LateralOffset = Right * ConeHalfWidth * SideSign;
+    const FVector NodePoint = PlayerLocation + NormalizedForward  * TargetForwardDistance + LateralOffset;
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
+		// nodo
 		DrawDebugSphere(GetWorld(), NodePoint, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
 	}
 	#endif
@@ -422,8 +431,7 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 		}
 		OutAvoidPoint = Projected.Location;
 	}
-	
-    
+	    
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
@@ -432,7 +440,7 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 		DrawDebugLine(GetWorld(), Start + Offset, OutAvoidPoint + Offset, FColor::Yellow, false, 5.0f, 1, 6.0f);
 	
 		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] ForwardDistance=%.2f SideDistance=%.2f ConeHalfWidth=%.2f"), ForwardDistance, SideDistance, ConeHalfWidth);
-		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] AvoidPoint1 = %s"), *OutAvoidPoint.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] AvoidPoint = %s"), *OutAvoidPoint.ToString());
 	}
 	#endif
     return true;
