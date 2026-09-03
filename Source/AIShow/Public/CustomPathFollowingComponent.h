@@ -15,24 +15,25 @@ class AISHOW_API UCustomPathFollowingComponent : public UPathFollowingComponent
 public:
 	virtual FAIRequestID RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath) override;
 	virtual void OnPathFinished(const FPathFollowingResult& Result) override;
+
 private:
 	bool IsPlayerCrossing(FNavPathSharedPtr InPath);
 	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward) const;
 	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
 	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
-		FVector& OutAvoidPoint, FVector& OutAvoidPoint2) const;
+		FVector& OutAvoidPoint);
 	void StartAvoidanceUpdates();
 	void UpdateAvoidancePath();
 	void StopAvoidanceUpdates();
-	
+
 	#if !UE_BUILD_SHIPPING
 	// Debug functions
-	void DrawConeOfVision(const FVector& PlayerForwardVector, const FVector& PlayerLocation) const;
+	void DrawConeOfVision(const FVector& PlayerForwardVector, const FVector& PlayerLocation, bool bPersistentLines = false, float LifeTime = 0.01f) const;
 	#endif
 	
 protected:
+	virtual void FollowPathSegment(float DeltaTime) override;
 	virtual bool HandlePathUpdateEvent() override;
-
 private:
 	UPROPERTY(EditAnywhere,Category = "Settings")
 	float HalfVisionCone = 45.0f;
@@ -46,10 +47,10 @@ private:
 	float UpdateAvoidancePathRate = 0.15f;
 	UPROPERTY(EditAnywhere,Category = "Settings")
 	float Margin = 150.f;
-	
+	FNavPathSharedPtr CurrentPath;
 	FAIMoveRequest CurrentMoveRequest;
-	bool bIsRepathing = false;
 	FTimerHandle AvoidanceUpdateTH;
+	const float AvoidanceLookAhead = 400.0f;
 	FVector LastAvoidancePlayerlocation = FVector::ZeroVector;
 	bool bUsingAvoidancePath = false;
 	UPROPERTY()
