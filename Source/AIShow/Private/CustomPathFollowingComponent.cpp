@@ -324,11 +324,6 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 	{
 		return false;
 	}
-	// TODO : ver esto.
-	if (!PlayerCharacter)
-	{
-		PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	}
 	// Check si la distancia del player con respecto al goal es menor al ConeDistance , sino , no hacer ningun avoidance.
 	const FVector PlayerLoc = PlayerCharacter->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
@@ -433,6 +428,9 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 	}
 	OutAvoidPoint = {Projected.Location.X,Projected.Location.Y,0.0f};
 	
+	/////////// Deberia poder cortar aqui y reutilizar la funcion. 
+	
+	
 	/// Aqui se empieza a calcular un segundo nodo para evitar cruzarse al player por delante.
 	// if NodePoint cross in front of the playerLocation + normalizedForward entonces necesito un Nodepoint2 por detras del player y proyectarlo como OutAvoidPoint2
 	if (CheckIfTargetIsNearPlayer(NodePoint,CurrentPathGoal,NormalizedForward))
@@ -486,19 +484,18 @@ void UCustomPathFollowingComponent::StartAvoidanceUpdates()
 	if (GetWorld()->GetTimerManager().IsTimerActive(AvoidanceUpdateTH)) return;
 	GetWorld()->GetTimerManager().SetTimer(AvoidanceUpdateTH,this,
 		&UCustomPathFollowingComponent::UpdateAvoidancePath,UpdateAvoidancePathRate,true);
+	UE_LOG(LogTemp, Error, TEXT(">>> Updating AVoidance"));
 }
 
 void UCustomPathFollowingComponent::StopAvoidanceUpdates()
 {
 	UE_LOG(LogTemp, Error, TEXT(">>> Stop AVoidance Updates"));
-	
 	GetWorld()->GetTimerManager().ClearTimer(AvoidanceUpdateTH);
 	bUsingAvoidancePath = false;
 }
 
 void UCustomPathFollowingComponent::UpdateAvoidancePath()
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> Updating AVoidance"));
 	/// si no estamos en modo avoidance mejor no hacer ningun update ,no?
 	if (!bUsingAvoidancePath) return;
 	/// si estamos en dicho modo pero el agente ya no tiene controller o el player no existe pues , bye bye .
@@ -508,20 +505,25 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 		return;
 	}
 	const FVector PlayerLocation = PlayerCharacter->GetActorLocation();
-	const float PlayerMovementSquared = FVector::DistSquared2D(PlayerLocation,LastAvoidancePlayerlocation);
-	if (PlayerMovementSquared  < FMath::Square(MinPlayerMovementThreshold)) return;
-	LastAvoidancePlayerlocation = PlayerLocation;
-	
 	const FVector EnemyLocation = AIController->GetPawn()->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
-	FVector AvoidPoint = FVector::ZeroVector;
-	FVector AvoidPoint2 = FVector::ZeroVector;
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
-		DrawConeOfVision(PlayerForward,PlayerCharacter->GetActorLocation(), false,1.f);
+		DrawConeOfVision(PlayerForward,PlayerLocation, false,UpdateAvoidancePathRate);
 	}
 	#endif
+	const float PlayerMovementSquared = FVector::DistSquared2D(PlayerLocation,LastAvoidancePlayerlocation);
+	if (PlayerMovementSquared  < FMath::Square(MinPlayerMovementThreshold))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UpdateAvoidancePath] The player hasnt move yet"));
+		return;
+	}
+	// El jugador se ha movido lo suficiente para actualizar su localizacion
+	LastAvoidancePlayerlocation = PlayerLocation;
+	
+	FVector AvoidPoint = FVector::ZeroVector;
+	FVector AvoidPoint2 = FVector::ZeroVector;
 	if (!GetAvoidanceWaypoint(EnemyLocation,LastAvoidancePlayerlocation,PlayerForward,AvoidPoint, AvoidPoint2))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[UpdateAvoidancePath] Cant Get GetAvoidanceWaypoint"));
