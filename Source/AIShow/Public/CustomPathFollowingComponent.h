@@ -40,7 +40,7 @@ private:
 	UPROPERTY(EditAnywhere,Category = "Settings")
 	float HalfVisionCone = 45.0f;
 	UPROPERTY(EditAnywhere,Category = "Settings")
-	float ConeDistance = 800.f;
+	float ConeDistance = 600.f;
 	// Its the minimum distance that the player must move to repath
 	UPROPERTY(EditAnywhere,Category = "Settings")
 	float MinPlayerMovementThreshold = 100.f;

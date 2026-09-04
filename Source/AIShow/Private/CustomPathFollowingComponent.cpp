@@ -25,6 +25,7 @@ FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& Re
 		UE_LOG(LogTemp, Warning,TEXT("::RequestMove Path NOT valid -> PASS THROUGH"));
 		return Super::RequestMove(RequestData, InPath);
 	}
+	
 	if (InPath->GetPathPoints().Num() > 0)
 	{
 		CurrentPathGoal = InPath->GetPathPoints().Last().Location;
@@ -328,10 +329,17 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 	{
 		PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	}
-	
+	// Check si la distancia del player con respecto al goal es menor al ConeDistance , sino , no hacer ningun avoidance.
 	const FVector PlayerLoc = PlayerCharacter->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
-	const FVector Start = Points[0].Location; 
+	const FVector Start = Points[0].Location;
+	const float ToGoal = (CurrentPathGoal - PlayerLoc).SizeSquared();
+	const float ConeDistanceSquared = FMath::Square(ConeDistance);
+	if (ToGoal > ConeDistanceSquared)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] The goal is outside ConeDistance"));
+		return false;
+	}
 	FVector AvoidPoint  = FVector::ZeroVector;
 	FVector AvoidPoint2 = FVector::ZeroVector;
 	if (!GetAvoidanceWaypoint(Start, PlayerLoc, PlayerForward,AvoidPoint, AvoidPoint2))
@@ -425,7 +433,6 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 	}
 	OutAvoidPoint = {Projected.Location.X,Projected.Location.Y,0.0f};
 	
-	// TODO : necesito poder dicernir esto! 
 	/// Aqui se empieza a calcular un segundo nodo para evitar cruzarse al player por delante.
 	// if NodePoint cross in front of the playerLocation + normalizedForward entonces necesito un Nodepoint2 por detras del player y proyectarlo como OutAvoidPoint2
 	if (CheckIfTargetIsNearPlayer(NodePoint,CurrentPathGoal,NormalizedForward))
