@@ -67,36 +67,6 @@ void UCustomPathFollowingComponent::OnPathFinished(const FPathFollowingResult& R
 	StopAvoidanceUpdates();
 }
 
-void UCustomPathFollowingComponent::FollowPathSegment(float DeltaTime)
-{
-	// #if !UE_BUILD_SHIPPING
-	// if (AvoidVisionCvars::AvoidVisionDebug)
-	// {
-	// 	DrawConeOfVision(PlayerCharacter->GetActorForwardVector(),PlayerCharacter->GetActorLocation(), false);
-	// }
-	//#endif
-	// if (bUsingAvoidancePath || !CurrentPath.IsValid())
-	// {
-	// 	UE_LOG(LogTemp, Warning, TEXT("[FollowPathSegment] bUsingAvoidancePath is true or CurrentPath is invalid"));
-	// 	return;
-	// }
-	// if (IsPlayerCrossing(CurrentPath))
-	// {
-	// 	FNavPathSharedPtr AvoidancePath;
-	// 	if (CreateAvoidanceMetaPath(CurrentPath, AvoidancePath))
-	// 	{
-	// 		LastAvoidancePlayerlocation = PlayerCharacter->GetActorLocation();
-	// 		bUsingAvoidancePath = true;
-	// 		CurrentPath = AvoidancePath;
-	// 		StartAvoidanceUpdates();
-	// 		UE_LOG(LogTemp, Warning, TEXT("[FollowPathSegment] Avoidance MetaPath successfully created"));
-	// 		RequestMove(CurrentMoveRequest, CurrentPath);
-	// 		return;
-	// 	}
-	// }
-	Super::FollowPathSegment(DeltaTime);
-}
-
 bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
 {
 	UE_LOG(LogTemp, Error, TEXT(">>> IsPlayerCrossing"));
@@ -317,6 +287,30 @@ bool UCustomPathFollowingComponent::HandlePathUpdateEvent()
 	return Super::HandlePathUpdateEvent();
 }
 
+TArray<FVector> UCustomPathFollowingComponent::GetWaypoints(const FVector& Start, const FVector& AvoidPoint, const FVector& AvoidPoint2) const
+{
+	TArray<FVector> Waypoints;
+	Waypoints.Reserve(4);
+	Waypoints.Add(Start);
+	Waypoints.Add(AvoidPoint);
+	if (!AvoidPoint2.IsNearlyZero(1))
+	{
+		Waypoints.Add(AvoidPoint2);
+	}
+	Waypoints.Add(CurrentPathGoal);
+	return Waypoints;
+}
+bool UCustomPathFollowingComponent::CheckIfTargetIsNearPlayer(const FVector& Start, const FVector& End,const FVector& NormalizedForward, float Radius) const
+{
+	const FVector ClosestPoint = FMath::ClosestPointOnSegment(PlayerCharacter->GetActorLocation(),Start,End);
+	const FVector ToClosest = ClosestPoint - PlayerCharacter->GetActorLocation();
+	const float DistanceSquared = ToClosest.SizeSquared();
+	const float ForwardDistance = FVector::DotProduct(ToClosest,NormalizedForward);
+	const bool bPassesNearPlayer = DistanceSquared <= FMath::Square(Radius);
+	const bool bPassesInFrontPlayer = ForwardDistance > 0.0f;
+	return bPassesNearPlayer && bPassesInFrontPlayer;
+}
+
 bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath)
 {
 	UE_LOG(LogTemp, Error, TEXT(">>> Create AVoidance MetaPath"));
@@ -338,23 +332,15 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 	const FVector PlayerLoc = PlayerCharacter->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
 	const FVector Start = Points[0].Location; 
-	FVector AvoidPoint;
-	FVector AvoidPoint2;
+	FVector AvoidPoint  = FVector::ZeroVector;
+	FVector AvoidPoint2 = FVector::ZeroVector;
 	if (!GetAvoidanceWaypoint(Start, PlayerLoc, PlayerForward,AvoidPoint, AvoidPoint2))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] Failed To get Avoidance points")); 
 		return false;
 	}
 	
-	TArray<FVector> Waypoints;
-	Waypoints.Reserve(4);
-	Waypoints.Add(Start);
-	Waypoints.Add(AvoidPoint);
-	if (!AvoidPoint2.IsNearlyZero(1))
-	{
-		Waypoints.Add(AvoidPoint2);
-	}
-	Waypoints.Add(CurrentPathGoal);
+	TArray<FVector> Waypoints = GetWaypoints(Start, AvoidPoint, AvoidPoint2);
 
 	// TODO : ver esto. AIController ? nullptr ? 
 	TSharedPtr<FMetaNavMeshPath, ESPMode::ThreadSafe> MetaPath = MakeShared<FMetaNavMeshPath>(Waypoints, *AIController);
@@ -405,24 +391,25 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because ForwarDistance Less or equal ZERO"));
 		return false;
 	}
-    const float SideDistance = FVector::DotProduct(ToEnemy, Right);
-	const float SideSign = SideDistance >= 0.0f ? 1.0f : -1.0f;
 	
-	// point to calculate to.
-	const FVector Intersection3D = {CurrentIntersection.X,CurrentIntersection.Y,0.0f};
-	const FVector ToIntersection = Intersection3D;
-	const float Distance2D = ToIntersection.Size2D();
-	/// a distance behind player
-	const float AdvanceDistance = FMath::Clamp(ForwardDistance,ForwardDistance * 1.1,ForwardDistance * 2.0);
-	const float TargetForwardDistance = -ForwardDistance + AdvanceDistance;
+	/// buscamos una distancia por detras del jugador
+	const float TargetForwardDistance = -ForwardDistance + ForwardDistance * 1.1;
 	/// ancho del cono
     const float HalfAngleRadians = FMath::DegreesToRadians(HalfVisionCone);
+	/// El punto con el cual hacer el calculo.
+	/// Este dato lo hemos obtenido desde SegmentIntersectsVisionCone2D.	
+	const FVector Intersection3D = {CurrentIntersection.X,CurrentIntersection.Y,0.0f};
+	const float Distance2D = Intersection3D.Size2D();
 	/// al momento es la mitad de la amplitud del cono = 770 (45%)
 	const float ConeHalfWidth = HalfAngleRadians * Distance2D;
 	
 	/// Waypoint 
+	/// Offset hacia un lado para evitar el cono de vision
+	const float SideDistance = FVector::DotProduct(ToEnemy, Right);
+	const float SideSign = SideDistance >= 0.0f ? 1.0f : -1.0f;
 	const FVector LateralOffset = Right * ConeHalfWidth * SideSign;
     const FVector NodePoint = PlayerLocation - NormalizedForward  * TargetForwardDistance + LateralOffset;
+	
 	const UNavigationSystemV1* NavSys = Cast<UNavigationSystemV1>(GetWorld()->GetNavigationSystem());
 	if (!NavSys)
 	{
@@ -436,38 +423,41 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because NavSys failed to project"));
 		return false;
 	}
-	OutAvoidPoint = Projected.Location;
+	OutAvoidPoint = {Projected.Location.X,Projected.Location.Y,0.0f};
 	
 	// TODO : necesito poder dicernir esto! 
-	/// second node if needed!
+	/// Aqui se empieza a calcular un segundo nodo para evitar cruzarse al player por delante.
 	// if NodePoint cross in front of the playerLocation + normalizedForward entonces necesito un Nodepoint2 por detras del player y proyectarlo como OutAvoidPoint2
-	const FVector ToGoal = (CurrentPathGoal - NodePoint).GetSafeNormal();
-	const float ForwardSide = FVector::DotProduct(ToGoal,NormalizedForward);
-	UE_LOG(LogTemp,Warning,TEXT("[GetAvoidanceWaypoint] ForwardSide %f"),ForwardSide);
-	
-	DrawDebugSphere(GetWorld(), CurrentPathGoal, 35.0f, 16, FColor::Emerald, true, 10.0f, 1, 4.0f);
-	DrawDebugLine(GetWorld(), NodePoint, CurrentPathGoal, FColor::Red, true, 15.0f, 1, 6.0f);
-	
-	// Solo si Node1 a Goal cruzaria por delante de player
-	if (ForwardSide > 0.0f)
+	if (CheckIfTargetIsNearPlayer(NodePoint,CurrentPathGoal,NormalizedForward))
 	{
-		FVector NodePoint2 = NodePoint - NormalizedForward * TargetForwardDistance - LateralOffset;
-		FNavLocation Projected2;
-		if (NavSys->ProjectPointToNavigation(NodePoint2, Projected2))
+		const FVector ToGoal = (CurrentPathGoal - NodePoint).GetSafeNormal();
+		const float ForwardSide = FVector::DotProduct(ToGoal,NormalizedForward);
+		UE_LOG(LogTemp,Warning,TEXT("[GetAvoidanceWaypoint] ForwardSide %f"),ForwardSide);
+		
+		// Solo si Node1 a Goal cruzaria por delante de player
+		if (ForwardSide > 0.0f)
 		{
-			OutAvoidPoint2 = Projected2.Location;
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because NavSys failed to project NODE 2"));
+			const FVector NodePoint2 = NodePoint - NormalizedForward * TargetForwardDistance - LateralOffset;
+			FNavLocation Projected2;
+			if (NavSys->ProjectPointToNavigation(NodePoint2, Projected2))
+			{
+				OutAvoidPoint2 = {Projected2.Location.X,Projected2.Location.Y,0.0f};
+			}
+			else
+			{
+				OutAvoidPoint2 = FVector::ZeroVector;
+				UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] FALSE because NavSys failed to project NODE 2"));
+			}
 		}
 	}
-	
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
 		DrawDebugSphere(GetWorld(), NodePoint, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
 		DrawDebugSphere(GetWorld(), OutAvoidPoint, 35.0f, 16, FColor::Yellow, false, 10.0f, 1, 4.0f);
+		DrawDebugSphere(GetWorld(), CurrentPathGoal, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
+		DrawDebugLine(GetWorld(), NodePoint, CurrentPathGoal, FColor::Red, false, 15.0f, 1, 6.0f);
+	
 		if (OutAvoidPoint2 != FVector::ZeroVector)
 		{
 			DrawDebugSphere(GetWorld(), OutAvoidPoint2, 75.0f, 16, FColor::Orange, false, 10.0f, 1, 4.0f);
@@ -498,11 +488,13 @@ void UCustomPathFollowingComponent::StopAvoidanceUpdates()
 	GetWorld()->GetTimerManager().ClearTimer(AvoidanceUpdateTH);
 	bUsingAvoidancePath = false;
 }
+
 void UCustomPathFollowingComponent::UpdateAvoidancePath()
 {
 	UE_LOG(LogTemp, Error, TEXT(">>> Updating AVoidance"));
+	/// si no estamos en modo avoidance mejor no hacer ningun update ,no?
 	if (!bUsingAvoidancePath) return;
-
+	/// si estamos en dicho modo pero el agente ya no tiene controller o el player no existe pues , bye bye .
 	if (!AIController || !PlayerCharacter)
 	{
 		StopAvoidanceUpdates();
@@ -515,8 +507,8 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 	
 	const FVector EnemyLocation = AIController->GetPawn()->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
-	FVector AvoidPoint;
-	FVector AvoidPoint2;
+	FVector AvoidPoint = FVector::ZeroVector;
+	FVector AvoidPoint2 = FVector::ZeroVector;
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
@@ -529,15 +521,7 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 		return;
 	}
 	
-	TArray<FVector> Waypoints;
-	Waypoints.Reserve(4);
-	Waypoints.Add(EnemyLocation);
-	Waypoints.Add(AvoidPoint);
-	if (!AvoidPoint2.IsNearlyZero(1))
-	{
-		Waypoints.Add(AvoidPoint2);
-	}
-	Waypoints.Add(CurrentPathGoal);
+	TArray<FVector> Waypoints = GetWaypoints(EnemyLocation,AvoidPoint,AvoidPoint2);
 
 	const TSharedPtr<FMetaNavMeshPath,ESPMode::ThreadSafe> MetaPath = MakeShared<FMetaNavMeshPath>(Waypoints,*AIController);
 	if (!MetaPath.IsValid())

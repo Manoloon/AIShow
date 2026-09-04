@@ -26,14 +26,16 @@ private:
 	void UpdateAvoidancePath();
 	void StopAvoidanceUpdates();
 
+	TArray<FVector> GetWaypoints(const FVector& Start, const FVector& AvoidPoint, const FVector& AvoidPoint2) const;
+	bool CheckIfTargetIsNearPlayer(const FVector& Start, const FVector& End,const FVector& NormalizedForward, float Radius = 150.f) const;
 	#if !UE_BUILD_SHIPPING
 	// Debug functions
 	void DrawConeOfVision(const FVector& PlayerForwardVector, const FVector& PlayerLocation, bool bPersistentLines = false, float LifeTime = 0.01f) const;
 	#endif
 	
 protected:
-	virtual void FollowPathSegment(float DeltaTime) override;
 	virtual bool HandlePathUpdateEvent() override;
+	
 private:
 	UPROPERTY(EditAnywhere,Category = "Settings")
 	float HalfVisionCone = 45.0f;
