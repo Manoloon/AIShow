@@ -68,12 +68,14 @@ void UCustomPathFollowingComponent::OnPathFinished(const FPathFollowingResult& R
 	StopAvoidanceUpdates();
 }
 
-bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
+bool UCustomPathFollowingComponent::IsPlayerCrossing(const FNavPathSharedPtr& InPath)
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> IsPlayerCrossing"));
-	
-	AIController = Cast<AAIController>(GetOwner());
-	PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(),0);
+	UE_LOG(LogTemp, Display, TEXT(">>> IsPlayerCrossing"));
+	if (!AIController)
+	{
+		AIController = Cast<AAIController>(GetOwner());
+		PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(),0);
+	}
 	if (!PlayerCharacter || !InPath.IsValid())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] Player OR Path are NOT Valid"));
@@ -82,7 +84,7 @@ bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
 	const TArray<FNavPathPoint>& Points = InPath->GetPathPoints();
 	if (Points.Num() < 2)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] Points less than 2"));
+		UE_LOG(LogTemp, Error, TEXT("[IsPlayerCrossing] Points less than 2"));
 		return false;
 	}
 	const FVector PlayerLoc = PlayerCharacter->GetActorLocation();
@@ -120,13 +122,13 @@ bool UCustomPathFollowingComponent::IsPlayerCrossing(FNavPathSharedPtr InPath)
 			return true;
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] NOT INTERSECTS"));
+	UE_LOG(LogTemp, Error, TEXT("[IsPlayerCrossing] NOT INTERSECTS"));
 	return false;
 }
 
 bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward)
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> SegmentIntersectsVisionCone2D"));
+	UE_LOG(LogTemp, Display, TEXT(">>> SegmentIntersectsVisionCone2D"));
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
@@ -140,7 +142,6 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 	const FVector2D End(SegmentEnd.X, SegmentEnd.Y);
 	const FVector2D Player(PlayerLocation.X, PlayerLocation.Y);
 	FVector2D Forward(PlayerForward.X, PlayerForward.Y);
-	Forward.Normalize();
 	if (!Forward.Normalize())
 	{
 		return false;
@@ -159,22 +160,8 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 		}
 		const FVector2D Direction = ToPoint.GetSafeNormal();
 		const float Dot = FVector2D::DotProduct(Forward, Direction);
-		return Dot >= CosHalfAngle;
+		return Dot > CosHalfAngle;
 	};
-
-	if (IsPointInsideCone(Start))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[SegmentIntersectsVisionCone2D] IsPointInsideCone -> Start"));
-		CurrentIntersection = Start;
-		return true;
-	}
-	
-	if (IsPointInsideCone(End))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[SegmentIntersectsVisionCone2D] IsPointInsideCone -> End"));
-		CurrentIntersection = End;
-		return true;
-	}
 	
 	// Interseccion segmento / circulo : funcion cuadratica : A·t² + B·t + C = 0 (t es la posicion a lo largo del segmento)
 	/// Posicion inicial del segmento - la posicion del player
@@ -260,7 +247,7 @@ bool UCustomPathFollowingComponent::SegmentIntersectsVisionCone2D(const FVector&
 
 bool UCustomPathFollowingComponent::HandlePathUpdateEvent()
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> HandlePathUpdateEvent"));
+	UE_LOG(LogTemp, Display, TEXT(">>> HandlePathUpdateEvent"));
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
@@ -314,7 +301,7 @@ bool UCustomPathFollowingComponent::CheckIfTargetIsNearPlayer(const FVector& Sta
 
 bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath)
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> Create AVoidance MetaPath"));
+	UE_LOG(LogTemp, Display, TEXT(">>> Create AVoidance MetaPath"));
 	if (!OriginalPath.IsValid())
 	{
 		return false;
@@ -328,9 +315,11 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 	const FVector PlayerLoc = PlayerCharacter->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
 	const FVector Start = Points[0].Location;
-	const float ToGoal = (CurrentPathGoal - PlayerLoc).SizeSquared();
-	const float ConeDistanceSquared = FMath::Square(ConeDistance);
-	if (ToGoal > ConeDistanceSquared)
+	if (!SegmentIntersectsVisionCone2D(
+		Start,
+		CurrentPathGoal,
+		PlayerLoc,
+		PlayerForward))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] The goal is outside ConeDistance"));
 		return false;
@@ -377,7 +366,7 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
 	FVector& OutAvoidPoint, FVector& OutAvoidPoint2)
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> Get Avoidance Waypoint"));
+	UE_LOG(LogTemp, Display, TEXT(">>> Get Avoidance Waypoint"));
 	
 	const FVector NormalizedForward = PlayerForward.GetSafeNormal2D();
     if (NormalizedForward.IsNearlyZero())
@@ -479,17 +468,17 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 
 void UCustomPathFollowingComponent::StartAvoidanceUpdates()
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> Start AVoidance Updates"));
+	UE_LOG(LogTemp, Display, TEXT(">>> Start AVoidance Updates"));
 	
 	if (GetWorld()->GetTimerManager().IsTimerActive(AvoidanceUpdateTH)) return;
 	GetWorld()->GetTimerManager().SetTimer(AvoidanceUpdateTH,this,
 		&UCustomPathFollowingComponent::UpdateAvoidancePath,UpdateAvoidancePathRate,true);
-	UE_LOG(LogTemp, Error, TEXT(">>> Updating AVoidance"));
+	UE_LOG(LogTemp, Display, TEXT(">>> Updating AVoidance"));
 }
 
 void UCustomPathFollowingComponent::StopAvoidanceUpdates()
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> Stop AVoidance Updates"));
+	UE_LOG(LogTemp, Display, TEXT(">>> Stop AVoidance Updates"));
 	GetWorld()->GetTimerManager().ClearTimer(AvoidanceUpdateTH);
 	bUsingAvoidancePath = false;
 }

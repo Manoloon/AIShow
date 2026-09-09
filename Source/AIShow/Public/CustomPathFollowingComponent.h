@@ -17,7 +17,11 @@ public:
 	virtual void OnPathFinished(const FPathFollowingResult& Result) override;
 
 private:
-	bool IsPlayerCrossing(FNavPathSharedPtr InPath);
+	#if WITH_DEV_AUTOMATION_TESTS
+	friend class FCustomPathFollowingComponent_SegmentIntersectsVisionCone2D;
+	#endif
+	
+	bool IsPlayerCrossing(const FNavPathSharedPtr& InPath);
 	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward);
 	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
 	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
@@ -31,6 +35,7 @@ private:
 	#if !UE_BUILD_SHIPPING
 	// Debug functions
 	void DrawConeOfVision(const FVector& PlayerForwardVector, const FVector& PlayerLocation, bool bPersistentLines = false, float LifeTime = 0.01f) const;
+	const FVector VertOffset = FVector(0, 0, 20);
 	#endif
 	
 protected:
@@ -58,5 +63,4 @@ private:
 	ACharacter* PlayerCharacter = nullptr;
 	FVector CurrentPathGoal = FVector::ZeroVector;
 	FVector2D CurrentIntersection = FVector2D::ZeroVector;
-	const FVector VertOffset = FVector(0, 0, 20);
 };
