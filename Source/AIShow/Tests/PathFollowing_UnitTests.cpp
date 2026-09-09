@@ -74,7 +74,7 @@ bool FCustomPathFollowingComponent_SegmentIntersectsVisionCone2D::RunTest(const 
 	{
 		// 600 es el cone distance
 		const FVector SegmentStart = FVector(600.f,-350.f,0.f);
-		const FVector SegmentEnd = FVector(600.f,1 50.f,0.f);
+		const FVector SegmentEnd = FVector(600.f,150.f,0.f);
 		
 		const bool bIntersects = Comp->SegmentIntersectsVisionCone2D(SegmentStart,
 			SegmentEnd,PlayerLocation,PlayerForward);
