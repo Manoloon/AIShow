@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "NavigationSystem.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "CustomPathFollowingComponent.generated.h"
 
@@ -26,18 +27,20 @@ private:
 	bool IsPlayerCrossing(const FNavPathSharedPtr& InPath, const FVector& PlayerLocation, const FVector& PlayerForwardVector);
 	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward);
 	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& InPath, const FVector& PlayerLocation, const FVector& PlayerForwardVector, FNavPathSharedPtr& OutMetaPath);
-	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
-		FVector& OutAvoidPoint, FVector& OutAvoidPoint2) const;
+	bool GetSecondAvoidanceWaypoint(const FVector& PreviousNodePoint, const FVector& NormalizedForward, const FVector& PrevLateralOffset, FVector& OutAvoidPoint) const;
+	bool GetFirstAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& NormalizedForward,
+		FVector& OutAvoidPoint, FVector& OutCreatedNode, FVector& OutLateralOffset) const;
+	bool GetAvoidancePoints(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward, TArray<FVector>& OutAvoidancePoints) const;
 	void StartAvoidanceUpdates();
 	void UpdateAvoidancePath();
 	void StopAvoidanceUpdates();
 
-	TArray<FVector> GetWaypoints(const FVector& Start, const FVector& AvoidPoint, const FVector& AvoidPoint2) const;
+	TArray<FVector> GetWaypoints(const FVector& Start, const TArray<FVector>& AvoidPoints) const;
 	bool CheckIfTargetIsNearPlayer(const FVector& Start, const FVector& End,const FVector& NormalizedForward, float Radius = 150.f) const;
 	#if !UE_BUILD_SHIPPING
 	// Debug functions
-	void DebugAvoidanceWaypoint(const FVector& Start, const FVector& OutAvoidPoint, const FVector& OutAvoidPoint2,
-		float ForwardDistance, float ConeHalfWidth, float SideDistance, const FVector& NodePoint) const;
+	void DebugAvoidanceWaypoint(const FVector& Start, const FVector& OutAvoidPoint,const FVector& NodePoint, float ForwardDistance,
+				bool IsSecondWaypoint, float ConeHalfWidth=45.f, float SideDistance=1.f) const;
 	void DrawConeOfVision(const FVector& PlayerForwardVector, const FVector& PlayerLocation, bool bPersistentLines = false, float LifeTime = 0.01f) const;
 	const FVector VertOffset = FVector(0, 0, 20);
 	#endif

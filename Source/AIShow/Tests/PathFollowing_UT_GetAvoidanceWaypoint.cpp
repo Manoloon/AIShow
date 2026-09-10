@@ -12,10 +12,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags::EngineFilter)
 
 // helper 
-FNavPathSharedPtr CreateTestPath(const TArray<FVector>& Locations)
-{
-	return MakeShared<FNavigationPath>(Locations);
-}
+// FNavPathSharedPtr CreateTestPath(const TArray<FVector>& Locations)
+// {
+// 	return MakeShared<FNavigationPath>(Locations);
+// }
 
 bool FCustomPathFollowingComponent_GetAvoidanceWaypoint::RunTest(const FString& Parameters)
 {
