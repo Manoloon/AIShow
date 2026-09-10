@@ -18,14 +18,17 @@ namespace AvoidVisionCvars
 #endif
 FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath)
 {
-	UE_LOG(LogTemp, Error, TEXT(">>> Request Move"));
+	UE_LOG(LogTemp, Warning, TEXT(">>> Request Move"));
 		
 	if (!InPath.IsValid())
 	{
 		UE_LOG(LogTemp, Warning,TEXT("::RequestMove Path NOT valid -> PASS THROUGH"));
 		return Super::RequestMove(RequestData, InPath);
 	}
-	
+	if (!PlayerCharacter)
+	{
+		PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(),0);
+	}
 	if (InPath->GetPathPoints().Num() > 0)
 	{
 		CurrentPathGoal = InPath->GetPathPoints().Last().Location;
@@ -38,7 +41,7 @@ FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& Re
 		UE_LOG(LogTemp, Warning,TEXT("::RequestMove received while using avoidance path -> PASS THROUGH"));
 		return Super::RequestMove(RequestData, InPath);
 	}
-	if (IsPlayerCrossing(InPath))
+	if (IsPlayerCrossing(InPath, PlayerCharacter->GetActorLocation(), PlayerCharacter->GetActorForwardVector()))
 	{
 		FNavPathSharedPtr AvoidancePath;
 		if (CreateAvoidanceMetaPath(InPath, AvoidancePath))
@@ -64,42 +67,40 @@ FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& Re
 void UCustomPathFollowingComponent::OnPathFinished(const FPathFollowingResult& Result)
 {
 	Super::OnPathFinished(Result);
-	UE_LOG(LogTemp, Error, TEXT(">>> OnPathFinished : Stop AVoidance Updates"));
+	UE_LOG(LogTemp, Warning, TEXT(">>> OnPathFinished : Stop AVoidance Updates"));
 	StopAvoidanceUpdates();
 }
 
-bool UCustomPathFollowingComponent::IsPlayerCrossing(const FNavPathSharedPtr& InPath)
+void UCustomPathFollowingComponent::Initialize()
 {
-	UE_LOG(LogTemp, Display, TEXT(">>> IsPlayerCrossing"));
-	if (!AIController)
+	Super::Initialize();
+	AIController = Cast<AAIController>(GetOwner());
+}
+
+bool UCustomPathFollowingComponent::IsPlayerCrossing(const FNavPathSharedPtr& InPath, const FVector& PlayerLocation, const FVector& PlayerForwardVector)
+{
+	if (!InPath.IsValid())
 	{
-		AIController = Cast<AAIController>(GetOwner());
-		PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(),0);
-	}
-	if (!PlayerCharacter || !InPath.IsValid())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] Player OR Path are NOT Valid"));
+		UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] Path is NOT Valid"));
 		return false;
 	}
+	UE_LOG(LogTemp, Display, TEXT(">>> IsPlayerCrossing"));
 	const TArray<FNavPathPoint>& Points = InPath->GetPathPoints();
 	if (Points.Num() < 2)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[IsPlayerCrossing] Points less than 2"));
+		UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] Points less than 2"));
 		return false;
 	}
-	const FVector PlayerLoc = PlayerCharacter->GetActorLocation();
 	// Convertir a un cono de 45.f grados
 	// 		ángulo      Dot
 	//		0°          1.0
 	//		45°         0.707
 	//		90°         0.0
 	//		180°       -1.0
-	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
-
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
-		DrawConeOfVision(PlayerForward,PlayerLoc, true);
+		DrawConeOfVision(PlayerForwardVector,PlayerLocation, true);
 	}
 	#endif
 
@@ -116,13 +117,13 @@ bool UCustomPathFollowingComponent::IsPlayerCrossing(const FNavPathSharedPtr& In
 		const FVector Start = Points[i].Location;
 		const FVector End = Points[i + 1].Location;
 		
-		if (SegmentIntersectsVisionCone2D(Start, End, PlayerLoc, PlayerForward))
+		if (SegmentIntersectsVisionCone2D(Start, End, PlayerLocation, PlayerForwardVector))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] PATH INTERSECTS PLAYER VISION CONE"));
 			return true;
 		}
 	}
-	UE_LOG(LogTemp, Error, TEXT("[IsPlayerCrossing] NOT INTERSECTS"));
+	UE_LOG(LogTemp, Warning, TEXT("[IsPlayerCrossing] NOT INTERSECTS"));
 	return false;
 }
 
@@ -527,7 +528,7 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 		return;
 	}
 	
-	if (!IsPlayerCrossing(CurrentPath))
+	if (!IsPlayerCrossing(CurrentPath, PlayerLocation, PlayerForward))
 	{
 		StopAvoidanceUpdates();
 		RequestMove(CurrentMoveRequest, MetaPath);

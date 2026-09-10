@@ -15,13 +15,14 @@ class AISHOW_API UCustomPathFollowingComponent : public UPathFollowingComponent
 public:
 	virtual FAIRequestID RequestMove(const FAIMoveRequest& RequestData, FNavPathSharedPtr InPath) override;
 	virtual void OnPathFinished(const FPathFollowingResult& Result) override;
-
+	virtual void Initialize() override;
 private:
 	#if WITH_DEV_AUTOMATION_TESTS
 	friend class FCustomPathFollowingComponent_SegmentIntersectsVisionCone2D;
+	friend class FCustomPathFollowingComponent_IsPlayerCrossing;
 	#endif
 	
-	bool IsPlayerCrossing(const FNavPathSharedPtr& InPath);
+	bool IsPlayerCrossing(const FNavPathSharedPtr& InPath, const FVector& PlayerLocation, const FVector& PlayerForwardVector);
 	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward);
 	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
 	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
