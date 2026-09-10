@@ -307,11 +307,13 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 	UE_LOG(LogTemp, Display, TEXT(">>> Create AVoidance MetaPath"));
 	if (!InPath.IsValid())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] Path is NOT valid"));
 		return false;
 	}
 	const TArray<FNavPathPoint>& Points = InPath->GetPathPoints();
 	if (Points.Num() < 2)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] Points less than 2"));
 		return false;
 	}
 	// Check si la distancia del player con respecto al goal es menor al ConeDistance , sino , no hacer ningun avoidance.
@@ -328,17 +330,18 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 	TArray<FVector> AvoidancePoints;
 	if (!GetAvoidancePoints(Start,PlayerLocation,PlayerForwardVector,AvoidancePoints))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[UpdateAvoidancePath] Cant Get GetAvoidanceWaypoint"));
+		UE_LOG(LogTemp, Error, TEXT("[UpdateAvoidancePath] Cant Get GetAvoidanceWaypoint projected"));
+		return false;
 	}
 	TArray<FVector> Waypoints = GetWaypoints(Start, AvoidancePoints);
-
-	// TODO : ver esto. AIController ? nullptr ? 
+	
 	TSharedPtr<FMetaNavMeshPath, ESPMode::ThreadSafe> MetaPath = MakeShared<FMetaNavMeshPath>(Waypoints, *AIController);
 	if (!MetaPath.IsValid())
 	{
 		return false;
 	}
 	OutMetaPath = MetaPath;
+	
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug && !AvoidancePoints.IsEmpty())
 	{
@@ -454,7 +457,7 @@ bool UCustomPathFollowingComponent::GetAvoidancePoints(const FVector& Start, con
 	FVector AvoidPoint  = FVector::ZeroVector;
 	FVector NodeOneCreated = FVector::ZeroVector;
 	FVector OutLateralOffset = FVector::ZeroVector;
-	const FVector NormalizedForward = NormalizedForward.GetSafeNormal2D();
+	const FVector NormalizedForward = PlayerForward.GetSafeNormal2D();
 	if (NormalizedForward.IsNearlyZero())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidancePoints] NormalizedForward equal ZERO"));
@@ -510,12 +513,14 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 	const FVector PlayerLocation = PlayerCharacter->GetActorLocation();
 	const FVector EnemyLocation = AIController->GetPawn()->GetActorLocation();
 	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
+	
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
 		DrawConeOfVision(PlayerForward,PlayerLocation, false,UpdateAvoidancePathRate);
 	}
 	#endif
+	
 	const float PlayerMovementSquared = FVector::DistSquared2D(PlayerLocation,LastAvoidancePlayerlocation);
 	if (PlayerMovementSquared  < FMath::Square(MinPlayerMovementThreshold))
 	{
@@ -528,7 +533,7 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 	TArray<FVector> AvoidancePoints;
 	if (!GetAvoidancePoints(EnemyLocation,LastAvoidancePlayerlocation,PlayerForward,AvoidancePoints))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[UpdateAvoidancePath] Cant Get GetAvoidanceWaypoint"));
+		UE_LOG(LogTemp, Error, TEXT("[UpdateAvoidancePath] Cant Get GetAvoidanceWaypoint projected"));
 		return;
 	}
 	
