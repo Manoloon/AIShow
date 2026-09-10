@@ -41,10 +41,12 @@ FAIRequestID UCustomPathFollowingComponent::RequestMove(const FAIMoveRequest& Re
 		UE_LOG(LogTemp, Warning,TEXT("::RequestMove received while using avoidance path -> PASS THROUGH"));
 		return Super::RequestMove(RequestData, InPath);
 	}
-	if (IsPlayerCrossing(InPath, PlayerCharacter->GetActorLocation(), PlayerCharacter->GetActorForwardVector()))
+	const FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
+	if (IsPlayerCrossing(InPath, PlayerLocation, PlayerForward))
 	{
 		FNavPathSharedPtr AvoidancePath;
-		if (CreateAvoidanceMetaPath(InPath, AvoidancePath))
+		if (CreateAvoidanceMetaPath(InPath, PlayerLocation, PlayerForward, AvoidancePath))
 		{
 			LastAvoidancePlayerlocation = PlayerCharacter->GetActorLocation();
 			#if !UE_BUILD_SHIPPING
@@ -300,34 +302,32 @@ bool UCustomPathFollowingComponent::CheckIfTargetIsNearPlayer(const FVector& Sta
 	return bPassesNearPlayer && bPassesInFrontPlayer;
 }
 
-bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath)
+bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathSharedPtr& InPath, const FVector& PlayerLocation, const FVector& PlayerForwardVector, FNavPathSharedPtr& OutMetaPath)
 {
 	UE_LOG(LogTemp, Display, TEXT(">>> Create AVoidance MetaPath"));
-	if (!OriginalPath.IsValid())
+	if (!InPath.IsValid())
 	{
 		return false;
 	}
-	const TArray<FNavPathPoint>& Points = OriginalPath->GetPathPoints();
+	const TArray<FNavPathPoint>& Points = InPath->GetPathPoints();
 	if (Points.Num() < 2)
 	{
 		return false;
 	}
 	// Check si la distancia del player con respecto al goal es menor al ConeDistance , sino , no hacer ningun avoidance.
-	const FVector PlayerLoc = PlayerCharacter->GetActorLocation();
-	const FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
 	const FVector Start = Points[0].Location;
 	if (!SegmentIntersectsVisionCone2D(
 		Start,
 		CurrentPathGoal,
-		PlayerLoc,
-		PlayerForward))
+		PlayerLocation,
+		PlayerForwardVector))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] The goal is outside ConeDistance"));
 		return false;
 	}
 	FVector AvoidPoint  = FVector::ZeroVector;
 	FVector AvoidPoint2 = FVector::ZeroVector;
-	if (!GetAvoidanceWaypoint(Start, PlayerLoc, PlayerForward,AvoidPoint, AvoidPoint2))
+	if (!GetAvoidanceWaypoint(Start, PlayerLocation, PlayerForwardVector,AvoidPoint, AvoidPoint2))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[CreateAvoidanceMetaPath] Failed To get Avoidance points")); 
 		return false;
@@ -365,7 +365,7 @@ bool UCustomPathFollowingComponent::CreateAvoidanceMetaPath(const FNavPathShared
 
 /// Cual es el desplazamiento minimo para que el segmento deje de cruzar el cono de vision ? 
 bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
-	FVector& OutAvoidPoint, FVector& OutAvoidPoint2)
+	FVector& OutAvoidPoint, FVector& OutAvoidPoint2) const
 {
 	UE_LOG(LogTemp, Display, TEXT(">>> Get Avoidance Waypoint"));
 	
@@ -420,7 +420,6 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 	
 	/////////// Deberia poder cortar aqui y reutilizar la funcion. 
 	
-	
 	/// Aqui se empieza a calcular un segundo nodo para evitar cruzarse al player por delante.
 	// if NodePoint cross in front of the playerLocation + normalizedForward entonces necesito un Nodepoint2 por detras del player y proyectarlo como OutAvoidPoint2
 	if (CheckIfTargetIsNearPlayer(NodePoint,CurrentPathGoal,NormalizedForward))
@@ -448,20 +447,7 @@ bool UCustomPathFollowingComponent::GetAvoidanceWaypoint(const FVector& Start, c
 	#if !UE_BUILD_SHIPPING
 	if (AvoidVisionCvars::AvoidVisionDebug)
 	{
-		DrawDebugSphere(GetWorld(), NodePoint, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
-		DrawDebugSphere(GetWorld(), OutAvoidPoint, 35.0f, 16, FColor::Yellow, false, 10.0f, 1, 4.0f);
-		DrawDebugSphere(GetWorld(), CurrentPathGoal, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
-		DrawDebugLine(GetWorld(), NodePoint, CurrentPathGoal, FColor::Red, false, 15.0f, 1, 6.0f);
-	
-		if (OutAvoidPoint2 != FVector::ZeroVector)
-		{
-			DrawDebugSphere(GetWorld(), OutAvoidPoint2, 75.0f, 16, FColor::Orange, false, 10.0f, 1, 4.0f);
-		}
-		DrawDebugLine(GetWorld(), Start + VertOffset, OutAvoidPoint + VertOffset, FColor::Yellow, false, 5.0f, 1, 6.0f);
-	
-		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] ForwardDistance=%.2f SideDistance=%.2f ConeHalfWidth=%.2f"), ForwardDistance, SideDistance, ConeHalfWidth);
-		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] AvoidPoint = %s"), *OutAvoidPoint.ToString());
-		UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] AvoidPoint2 = %s"), *OutAvoidPoint2.ToString());
+		DebugAvoidanceWaypoint(Start, OutAvoidPoint, OutAvoidPoint2, ForwardDistance, ConeHalfWidth, SideDistance, NodePoint);
 	}
 	#endif
     return true;
@@ -536,6 +522,24 @@ void UCustomPathFollowingComponent::UpdateAvoidancePath()
 }
 
 #if !UE_BUILD_SHIPPING
+void UCustomPathFollowingComponent::DebugAvoidanceWaypoint(const FVector& Start, const FVector& OutAvoidPoint, const FVector& OutAvoidPoint2, const float ForwardDistance, const float ConeHalfWidth, const float SideDistance, const FVector& NodePoint) const
+{
+	DrawDebugSphere(GetWorld(), NodePoint, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
+	DrawDebugSphere(GetWorld(), OutAvoidPoint, 35.0f, 16, FColor::Yellow, false, 10.0f, 1, 4.0f);
+	DrawDebugSphere(GetWorld(), CurrentPathGoal, 35.0f, 16, FColor::Emerald, false, 10.0f, 1, 4.0f);
+	DrawDebugLine(GetWorld(), NodePoint, CurrentPathGoal, FColor::Red, false, 15.0f, 1, 6.0f);
+	
+	if (OutAvoidPoint2 != FVector::ZeroVector)
+	{
+		DrawDebugSphere(GetWorld(), OutAvoidPoint2, 75.0f, 16, FColor::Orange, false, 10.0f, 1, 4.0f);
+	}
+	DrawDebugLine(GetWorld(), Start + VertOffset, OutAvoidPoint + VertOffset, FColor::Yellow, false, 5.0f, 1, 6.0f);
+	
+	UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] ForwardDistance=%.2f SideDistance=%.2f ConeHalfWidth=%.2f"), ForwardDistance, SideDistance, ConeHalfWidth);
+	UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] AvoidPoint = %s"), *OutAvoidPoint.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("[GetAvoidanceWaypoint] AvoidPoint2 = %s"), *OutAvoidPoint2.ToString());
+}
+
 void UCustomPathFollowingComponent::DrawConeOfVision(const FVector& PlayerForwardVector, 
 					const FVector& PlayerLocation, bool bPersistentLines, float LifeTime) const
 {

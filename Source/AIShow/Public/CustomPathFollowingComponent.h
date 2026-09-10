@@ -20,13 +20,14 @@ private:
 	#if WITH_DEV_AUTOMATION_TESTS
 	friend class FCustomPathFollowingComponent_SegmentIntersectsVisionCone2D;
 	friend class FCustomPathFollowingComponent_IsPlayerCrossing;
+	friend class FCustomPathFollowingComponent_GetAvoidanceWaypoint;
 	#endif
 	
 	bool IsPlayerCrossing(const FNavPathSharedPtr& InPath, const FVector& PlayerLocation, const FVector& PlayerForwardVector);
 	bool SegmentIntersectsVisionCone2D(const FVector& SegmentStart, const FVector& SegmentEnd, const FVector& PlayerLocation, const FVector& PlayerForward);
-	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& OriginalPath, FNavPathSharedPtr& OutMetaPath);
+	bool CreateAvoidanceMetaPath(const FNavPathSharedPtr& InPath, const FVector& PlayerLocation, const FVector& PlayerForwardVector, FNavPathSharedPtr& OutMetaPath);
 	bool GetAvoidanceWaypoint(const FVector& Start, const FVector& PlayerLocation, const FVector& PlayerForward,
-		FVector& OutAvoidPoint, FVector& OutAvoidPoint2);
+		FVector& OutAvoidPoint, FVector& OutAvoidPoint2) const;
 	void StartAvoidanceUpdates();
 	void UpdateAvoidancePath();
 	void StopAvoidanceUpdates();
@@ -35,6 +36,8 @@ private:
 	bool CheckIfTargetIsNearPlayer(const FVector& Start, const FVector& End,const FVector& NormalizedForward, float Radius = 150.f) const;
 	#if !UE_BUILD_SHIPPING
 	// Debug functions
+	void DebugAvoidanceWaypoint(const FVector& Start, const FVector& OutAvoidPoint, const FVector& OutAvoidPoint2,
+		float ForwardDistance, float ConeHalfWidth, float SideDistance, const FVector& NodePoint) const;
 	void DrawConeOfVision(const FVector& PlayerForwardVector, const FVector& PlayerLocation, bool bPersistentLines = false, float LifeTime = 0.01f) const;
 	const FVector VertOffset = FVector(0, 0, 20);
 	#endif
